@@ -38,9 +38,11 @@ show = db.Table('show',
     db.Column('start_time', db.DateTime, nullable=False, default=datetime.datetime.utcnow)
 )
 
-# class Genre(db.Model):
-#     __tablename__ = 'Genre'
-    
+genre = db.Table('genre',
+    db.Column('artist_id', db.Integer, db.ForeignKey('Artist.id')),
+    db.Column('venue_id', db.Integer, db.ForeignKey('Venue.id')),
+    db.Column('name', db.String(120), nullable=False)
+) 
 
 class Venue(db.Model):
     __tablename__ = 'Venue'
@@ -51,7 +53,6 @@ class Venue(db.Model):
     state = db.Column(db.String(120))
     address = db.Column(db.String(120))
     phone = db.Column(db.String(120))
-    genres = db.Column(db.String(120))
     seeking_talent = db.Column(db.Boolean, default=False)
     seeking_description = db.Column(db.String(500))
     website = db.Column(db.String(500))
@@ -59,9 +60,6 @@ class Venue(db.Model):
     facebook_link = db.Column(db.String(120))
     artists = db.relationship('Artist', secondary=show,
       backref=db.backref('venues', lazy=True))
-
-    # def __repr__(self):
-    #   return f'[{self.id}, {self.name}, {self.city}, {self.state}, {self.address}, {self.phone}, {self.genres}, {self.image_link}, {self.facebook_link}]'
 
     # TODO: implement any missing fields, as a database migration using Flask-Migrate|||
 
@@ -73,7 +71,6 @@ class Artist(db.Model):
     city = db.Column(db.String(120))
     state = db.Column(db.String(120))
     phone = db.Column(db.String(120))
-    genres = db.Column(db.String(120))
     seeking_venue = db.Column(db.Boolean, default=False)
     seeking_description = db.Column(db.String(500))
     website = db.Column(db.String(500))
@@ -253,11 +250,16 @@ def show_venue(venue_id):
 
   print(upcoming_shows, "              ", past_shows)
 
+  genres = []
+  for genreValue in db.session.query(genre).filter_by(venue_id=venue.id).all():
+    genres.append(genreValue.name)
+    print(genreValue.name)
+
 
   data = {
     "id": venue.id,
     "name": venue.name,
-    "genres": [venue.genres],
+    "genres": genres,
     "address": venue.address,
     "city": venue.city,
     "state": venue.state,
@@ -273,9 +275,9 @@ def show_venue(venue_id):
     "upcoming_shows_count": upcoming_shows_count,
   }
 
-  print()
-  print()
-  print(data)
+  # print()
+  # print()
+  # print(data)
 
   # data1={
   #   "id": 1,
@@ -376,7 +378,7 @@ def create_venue_submission():
     state = request.form['state']
     address = request.form['address']
     phone = request.form['phone']
-    genres = request.form['genres']
+    genres = request.form.getlist('genres')
     seeking_talent = True if request.form['seeking_talent'].lower() == 'yes' else False
     seeking_description = request.form['seeking_description']
     website = request.form['website']
@@ -385,9 +387,14 @@ def create_venue_submission():
 
     # WITH NOT VALIDATION ON FORM FIELDS
 
-    venue = Venue(name=name, city=city, state=state, address=address, phone=phone, genres=genres, seeking_talent=seeking_talent, seeking_description=seeking_description, website=website, image_link=image_link, facebook_link=facebook_link)
+    venue = Venue(name=name, city=city, state=state, address=address, phone=phone, seeking_talent=seeking_talent, seeking_description=seeking_description, website=website, image_link=image_link, facebook_link=facebook_link)
     db.session.add(venue)
     db.session.commit()
+
+    for genreValue in genres:
+      genreR = genre.insert().values(venue_id=venue.id, name=genreValue)
+      db.session.execute(genreR)
+      db.session.commit()
 
     # on successful db insert, flash success
     flash('Venue ' + name + ' was successfully listed!')
@@ -405,6 +412,8 @@ def create_venue_submission():
 @app.route('/venues/<venue_id>/delete')
 def delete_venue(venue_id):
   try:
+    deletedRows = genre.delete().where(genre.c.venue_id == venue_id)
+    db.session.execute(deletedRows)
     Venue.query.filter_by(id=venue_id).delete()
     db.session.commit()
     flash('Venue with id ' + venue_id + ' was deleted!')
@@ -413,6 +422,24 @@ def delete_venue(venue_id):
     flash('Somthing went wrong!. Could not delete venue with id ' + venue_id)
     print(e)
   finally:
+    db.session.close()
+  
+  return redirect('/')
+
+@app.route('/artists/<artist_id>/delete')
+def delete_artist(artist_id):
+  try:
+    deletedRows = genre.delete().where(genre.c.artist_id == artist_id)
+    db.session.execute(deletedRows)
+
+    Artist.query.filter_by(id=artist_id).delete()
+    db.session.commit()
+    flash('Artist with id ' + artist_id + ' was deleted!')
+  except Exception as e:
+    db.session.rollback()
+    flash('Somthing went wrong!. Could not delete artist with id ' + artist_id)
+    print(e)
+  finally:  
     db.session.close()
   
   return redirect('/')
@@ -521,10 +548,16 @@ def show_artist(artist_id):
   print(upcoming_shows, "              ", past_shows)
 
 
+  genres = []
+  for genreValue in db.session.query(genre).filter_by(artist_id=artist.id).all():
+    genres.append(genreValue.name)
+    print(genreValue.name)
+
+
   data = {
     "id": artist.id,
     "name": artist.name,
-    "genres": [artist.genres],
+    "genres": genres,
     "city": artist.city,
     "state": artist.state,
     "phone": artist.phone,
@@ -624,11 +657,18 @@ def edit_artist(artist_id):
   artist = Artist.query.get(artist_id)
 
   form = ArtistForm(obj=artist)
+
+  genres = []
+  for genreValue in db.session.query(genre).filter_by(artist_id=artist_id).all():
+    genres.append(genreValue.name)
+    print(genreValue.name)
+
+  
   
   artist={
     "id": artist.id,
     "name": artist.name,
-    "genres": [artist.genres],
+    "genres": genres,
     "city": artist.city,
     "state": artist.state,
     "phone": artist.phone,
@@ -665,7 +705,7 @@ def edit_artist_submission(artist_id):
     city = request.form['city']
     state = request.form['state']
     phone = request.form['phone']
-    genres = request.form['genres']
+    genres = request.form.getlist('genres')
     seeking_venue = True if request.form['seeking_venue'].lower() == 'yes' else False
     seeking_description = request.form['seeking_description']
     website = request.form['website']
@@ -678,12 +718,21 @@ def edit_artist_submission(artist_id):
     artist.city = city
     artist.state = state
     artist.phone = phone
-    artist.genres = genres
     artist.seeking_venue = seeking_venue
     artist.seeking_description = seeking_description
     artist.website = website
     artist.image_link = image_link
     artist.facebook_link = facebook_link
+
+    
+    deletedRows = genre.delete().where(genre.c.artist_id == artist_id)
+    db.session.execute(deletedRows)
+    db.session.commit()
+
+    for genreValue in genres:
+      genreR = genre.insert().values(artist_id=artist_id, name=genreValue)
+      db.session.execute(genreR)
+      db.session.commit()
 
     db.session.commit()
     flash("Your edit have been saved")
@@ -702,11 +751,16 @@ def edit_venue(venue_id):
   venue = Venue.query.get(venue_id)
 
   form = VenueForm(obj=venue)
+
+  genres = []
+  for genreValue in db.session.query(genre).filter_by(venue_id=venue_id).all():
+    genres.append(genreValue.name)
+    print(genreValue.name)
   
   venue={
     "id": venue.id,
     "name": venue.name,
-    "genres": [venue.genres],
+    "genres": genres,
     "address": venue.address,
     "city": venue.city,
     "state": venue.state,
@@ -748,7 +802,7 @@ def edit_venue_submission(venue_id):
     state = request.form['state']
     address = request.form['address']
     phone = request.form['phone']
-    genres = request.form['genres']
+    genres = request.form.getlist('genres')
     seeking_talent = True if request.form['seeking_talent'].lower() == 'yes' else False
     seeking_description = request.form['seeking_description']
     website = request.form['website']
@@ -762,12 +816,20 @@ def edit_venue_submission(venue_id):
     venue.state = state
     venue.address = address
     venue.phone = phone
-    venue.genres = genres
     venue.seeking_venue = seeking_talent
     venue.seeking_description = seeking_description
     venue.website = website
     venue.image_link = image_link
     venue.facebook_link = facebook_link
+
+    deletedRows = genre.delete().where(genre.c.venue_id == venue_id)
+    db.session.execute(deletedRows)
+    db.session.commit()
+
+    for genreValue in genres:
+      genreR = genre.insert().values(venue_id=venue_id, name=genreValue)
+      db.session.execute(genreR)
+      db.session.commit()
 
     db.session.commit()
     flash("Your edit have been saved")
@@ -799,7 +861,7 @@ def create_artist_submission():
     city = request.form['city']
     state = request.form['state']
     phone = request.form['phone']
-    genres = request.form['genres']
+    genres = request.form.getlist('genres')
     seeking_venue = True if request.form['seeking_venue'].lower() == 'yes' else False
     seeking_description = request.form['seeking_description']
     website = request.form['website']
@@ -808,9 +870,14 @@ def create_artist_submission():
 
     # WITH NOT VALIDATION ON FORM FIELDS
 
-    artist = Artist(name=name, city=city, state=state, phone=phone, genres=genres, seeking_venue=seeking_venue, seeking_description=seeking_description, website=website, image_link=image_link, facebook_link=facebook_link)
+    artist = Artist(name=name, city=city, state=state, phone=phone, seeking_venue=seeking_venue, seeking_description=seeking_description, website=website, image_link=image_link, facebook_link=facebook_link)
     db.session.add(artist)
     db.session.commit()
+
+    for genreValue in genres:
+      genreR = genre.insert().values(artist_id=artist.id, name=genreValue)
+      db.session.execute(genreR)
+      db.session.commit()
 
     flash('Artist ' + name + ' was successfully listed!')
 

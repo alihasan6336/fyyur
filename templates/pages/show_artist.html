@@ -71,7 +71,10 @@
 		{% endfor %}
 	</div>
 	<div>
-		<a href="/artists/{{ artist.id }}/edit"><button style="color: rgb(74, 74, 74);">Edit venue</button></a>
+		<a href="/artists/{{ artist.id }}/edit"><button class="btn btn-primary btn-lg">Edit artist</button></a>
+		<a href="/artists/{{ artist.id }}/delete">
+			<button class="btn btn-primary btn-lg" type="submit">Delete artist</button>
+		</a>
 	</div>
 </section>
 
