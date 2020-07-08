@@ -45,7 +45,7 @@ genre = db.Table('genre',
 ) 
 
 class Venue(db.Model):
-    __tablename__ = 'Venue'
+    __tablename__ = 'venues'
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String)
@@ -64,7 +64,7 @@ class Venue(db.Model):
     # TODO: implement any missing fields, as a database migration using Flask-Migrate|||
 
 class Artist(db.Model):
-    __tablename__ = 'Artist'
+    __tablename__ = 'artists'
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String)
@@ -78,15 +78,6 @@ class Artist(db.Model):
     facebook_link = db.Column(db.String(120))
 
     # TODO: implement any missing fields, as a database migration using Flask-Migrate|||
-
-# class Show(db.Model):
-#   __tablename__ = 'Show'
-
-#   venue_id = db.Column(db.Integer, db.ForeignKey("Venue.id"), primary_key=True),
-#   artist_id = db.Column(db.Integer, db.ForeignKey("Artist.id"), primary_key=True),
-#   start_time = db.Column(db.Date, default=datetime.datetime.now())
-
-
 
 # TODO Implement Show and Artist models, and complete all model relationships and properties, as a database migration.|||
 
@@ -151,7 +142,6 @@ def venues():
         "state": state,
         "venues": venues
       })
-  print(data)
 
   # data=[{
   #   "city": "San Francisco",
@@ -182,9 +172,9 @@ def search_venues():
   # seach for Hop should return "The Musical Hop".
   # search for "Music" should return "The Musical Hop" and "Park Square Live Music & Coffee"
 
-  search_term = request.form.get('search_term', '')
+  search_term = request.form['search_term']
 
-  venues = Venue.query.filter_by(name=search_term).all()
+  venues = Venue.query.filter(Venue.name.ilike(search_term)).all()
   
   data = []
   for venue in venues:
@@ -204,7 +194,7 @@ def search_venues():
     "data": data
   }
 
-  print(response)
+  # print(response)
 
   # response={
   #   "count": 1,
@@ -227,33 +217,31 @@ def show_venue(venue_id):
   upcoming_shows = []
   past_shows_count = 0
   upcoming_shows_count = 0
-  for show_venue in db.session.query(show).filter_by(venue_id=venue.id).all():
+  for show_venue in db.session.query(show, Artist).filter_by(venue_id=venue.id).outerjoin(Artist, show.c.artist_id == Artist.id):
     if show_venue.start_time > datetime.datetime.now():
       upcoming_shows_count += 1
-      artist =  Artist.query.get(show_venue.artist_id)
       upcoming_shows.append({
-        "artist_id": artist.id,
-        "artist_name": artist.name,
-        "artist_image_link": artist.image_link,
+        "artist_id": show_venue.Artist.id,
+        "artist_name": show_venue.Artist.name,
+        "artist_image_link": show_venue.Artist.image_link,
         "start_time": format_datetime(str(show_venue.start_time))
       })
     else:
       past_shows_count += 1
-      artist =  Artist.query.get(show_venue.artist_id)
       past_shows.append({
-        "artist_id": show_venue.artist_id,
-        "artist_name": artist.name,
-        "artist_image_link": artist.image_link,
+        "artist_id": show_venue.Artist.id,
+        "artist_name": show_venue.Artist.name,
+        "artist_image_link": show_venue.Artist.image_link,
         "start_time": format_datetime(str(show_venue.start_time))
       })
 
 
-  print(upcoming_shows, "              ", past_shows)
+  # print(upcoming_shows, "              ", past_shows)
 
   genres = []
   for genreValue in db.session.query(genre).filter_by(venue_id=venue.id).all():
     genres.append(genreValue.name)
-    print(genreValue.name)
+    # print(genreValue.name)
 
 
   data = {
@@ -479,9 +467,9 @@ def search_artists():
   # seach for "A" should return "Guns N Petals", "Matt Quevado", and "The Wild Sax Band".
   # search for "band" should return "The Wild Sax Band".
 
-  search_term = request.form.get('search_term', '')
+  search_term = request.form['search_term']
 
-  artists = Artist.query.filter_by(name=search_term).all()
+  artists = Artist.query.filter(Artist.name.ilike(search_term)).all()
   
   data = []
   for artist in artists:
@@ -501,7 +489,7 @@ def search_artists():
     "data": data
   }
 
-  print(response)
+  # print(response)
 
   # response={
   #   "count": 1,
@@ -524,34 +512,32 @@ def show_artist(artist_id):
   upcoming_shows = []
   past_shows_count = 0
   upcoming_shows_count = 0
-  for show_artist in db.session.query(show).filter_by(artist_id=artist.id).all():
+  for show_artist in db.session.query(show, Venue).filter_by(artist_id=artist.id).outerjoin(Venue, show.c.venue_id==Venue.id):
     if show_artist.start_time > datetime.datetime.now():
       upcoming_shows_count += 1
-      venue =  Venue.query.get(show_artist.venue_id)
       upcoming_shows.append({
-        "venue_id": venue.id,
-        "venue_name": venue.name,
-        "venue_image_link": venue.image_link,
+        "venue_id": show_artist.Venue.id,
+        "venue_name": show_artist.Venue.name,
+        "venue_image_link": show_artist.Venue.image_link,
         "start_time": format_datetime(str(show_artist.start_time))
       })
     else:
       past_shows_count += 1
-      venue =  Venue.query.get(show_artist.venue_id)
       past_shows.append({
-        "venue_id": venue.id,
-        "venue_name": venue.name,
-        "venue_image_link": venue.image_link,
+        "venue_id": show_artist.Venue.id,
+        "venue_name": show_artist.Venue.name,
+        "venue_image_link": show_artist.Venue.image_link,
         "start_time": format_datetime(str(show_artist.start_time))
       })
 
 
-  print(upcoming_shows, "              ", past_shows)
+  # print(upcoming_shows, "              ", past_shows)
 
 
   genres = []
   for genreValue in db.session.query(genre).filter_by(artist_id=artist.id).all():
     genres.append(genreValue.name)
-    print(genreValue.name)
+    # print(genreValue.name)
 
 
   data = {
@@ -572,9 +558,9 @@ def show_artist(artist_id):
     "upcoming_shows_count": upcoming_shows_count,
   }
 
-  print()
-  print()
-  print(data, "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh")
+  # print()
+  # print()
+  # print(data, "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh")
 
   # data1={
   #   "id": 4,
@@ -661,7 +647,7 @@ def edit_artist(artist_id):
   genres = []
   for genreValue in db.session.query(genre).filter_by(artist_id=artist_id).all():
     genres.append(genreValue.name)
-    print(genreValue.name)
+    # print(genreValue.name)
 
   
   
@@ -755,7 +741,7 @@ def edit_venue(venue_id):
   genres = []
   for genreValue in db.session.query(genre).filter_by(venue_id=venue_id).all():
     genres.append(genreValue.name)
-    print(genreValue.name)
+    # print(genreValue.name)
   
   venue={
     "id": venue.id,
@@ -907,7 +893,7 @@ def shows():
 
   data = []
   for _show in db.session.query(show).all():
-    print(_show)
+    # print(_show)
     artist = Artist.query.filter_by(id=_show.artist_id).first()
     venue = Venue.query.filter_by(id=_show.venue_id).first()
 
@@ -920,7 +906,7 @@ def shows():
       "start_time": _show.start_time.strftime("%m/%d/%Y, %H:%M:%S")
     })
 
-  print(data)
+  # print(data)
 
 
   # data=[{
